@@ -1,3 +1,3 @@
 ## Visualizing Concurrency in Go
 
-[View the slides online](https://t.co/OzQ46M084J)
+[View the slides online](http://divan.github.io/talks/2016/gophercon/)
