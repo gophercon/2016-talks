@@ -41,7 +41,7 @@ func prepareStarData(dataSet string) (plotter.Values, plotter.Values, error) {
 	// Get the data set we stored in pachyderm.
 	data, err := getDataSet(dataSet, "master", "godata")
 	if err != nil {
-		return plotter.Values{}, plotter.Values{}, errors.Wrap(err, "Could not get data from pachyderm")
+		return nil, nil, errors.Wrap(err, "Could not get data from pachyderm")
 	}
 
 	// Extract the records from the data.
@@ -49,7 +49,7 @@ func prepareStarData(dataSet string) (plotter.Values, plotter.Values, error) {
 	reader.FieldsPerRecord = -1
 	records, err := reader.ReadAll()
 	if err != nil {
-		return plotter.Values{}, plotter.Values{}, errors.Wrap(err, "Could not read in data records.")
+		return nil, nil, errors.Wrap(err, "Could not read in data records.")
 	}
 
 	v := make(plotter.Values, len(records))
@@ -59,7 +59,7 @@ func prepareStarData(dataSet string) (plotter.Values, plotter.Values, error) {
 	for i, each := range records {
 		value, err := strconv.ParseFloat(each[5], 64)
 		if err != nil {
-			return plotter.Values{}, plotter.Values{}, errors.Wrap(err, "Could not convert value to float")
+			return nil, nil, errors.Wrap(err, "Could not convert value to float")
 		}
 
 		v[i] = value
