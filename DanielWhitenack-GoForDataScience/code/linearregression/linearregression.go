@@ -77,7 +77,7 @@ func prepareCountData(dataSet string) ([][]int, error) {
 	// Get the data set we stored in pachyderm.
 	data, err := getDataSet(dataSet, "master", "godata")
 	if err != nil {
-		return [][]int{}, errors.Wrap(err, "Could not get data from pachyderm")
+		return nil, errors.Wrap(err, "Could not get data from pachyderm")
 	}
 
 	// Extract the records from the data.
@@ -85,7 +85,7 @@ func prepareCountData(dataSet string) ([][]int, error) {
 	reader.FieldsPerRecord = -1
 	records, err := reader.ReadAll()
 	if err != nil {
-		return [][]int{}, errors.Wrap(err, "Could not read in data records.")
+		return nil, errors.Wrap(err, "Could not read in data records.")
 	}
 
 	// Create a map of daily created repos where the keys are the days and
@@ -95,7 +95,7 @@ func prepareCountData(dataSet string) ([][]int, error) {
 	for _, each := range records {
 		t, err := time.Parse(layout, each[2][0:19])
 		if err != nil {
-			return [][]int{}, errors.Wrap(err, "Could not parse timestamps")
+			return nil, errors.Wrap(err, "Could not parse timestamps")
 		}
 		interval := int(t.Sub(startTime).Hours() / 24.0)
 		countMap[interval]++
