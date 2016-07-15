@@ -1,0 +1,148 @@
+Structuring Applications for Growth
+11 Jul 2016
+
+Ben Johnson
+benbjohnson@yahoo.com
+@benbjohnson
+
+
+* No consensus package layout
+
+* Group by function
+
+Example:
+
+	/myapp
+	    /controller
+	    /model
+	    ...
+
+- Poor naming: `controller.UserController`
+- Names are important!
+- Circular dependencies cause issues
+
+
+* Group by module
+
+Example:
+
+	/myapp
+	    /customers
+	    /products
+	    ...
+
+- Still have poor naming: `customers.Customer`
+- Still have circular dependencies
+
+
+* A different model
+
+* A different model
+
+- Root package for domain types
+- Group subpackages by dependency
+- Mock subpackage can be shared
+- Commands tie dependencies together
+
+* Root package
+
+Data Types (POGO)
+
+	Customer
+	Product
+	User
+
+Interfaces for implementations
+
+	type CustomerStore struct {
+		Customer(id int) (*Customer, error)
+		CreateCustomer(*Customer) error
+		DeleteCustomer(id int) error
+	}
+
+Domain types cannot depend on other packages in your application
+
+
+
+* Use subpackages for dependencies
+
+Map dependencies to your domain language
+
+	package postgres
+
+	import (
+		"database/sql"
+		"github.com/lib/pq"
+	)
+
+	type CustomerStore struct {
+		db *sql.DB
+	}
+
+	func (s *CustomerStore) Customer(id int) (*Customer, error) {
+		var c Customer
+		err := s.db.QueryRow(`SELECT id, name FROM customers ...`).Scan(&c.ID, &c.Name)
+		...
+		return &c, nil
+	}
+
+	...
+
+* Use subpackages for dependencies
+
+- Isolates your dependencies
+- Not just for third party dependencies (`http`)
+
+
+
+* Use a shared mock subpackage
+
+	package mock
+
+	type CustomerStore struct {
+		CustomerFn       func(id int) (*Customer, error)
+		CreateCustomerFn func(*Customer) error
+	}
+
+	func (s *CustomerStore) Customer(id int) (*Customer, error) {
+		return s.CustomerFn(id)
+	}
+
+	func (s *CustomerStore) CreateCustomer(c *Customer) error {
+		return s.CreateCustomerFn(c)
+	}
+
+
+* Commands tie dependencies together
+
+`cmd/myapp/main.go`
+
+	package main
+
+	import (
+		"github.com/benbjohnson/myapp/http"
+		"github.com/benbjohnson/myapp/postgres"
+	)
+
+	func main() {
+		s := postgres.NewCustomerStore()
+		if err := s.Open(); err != nil {
+			log.Fatal(err)
+		}
+
+		srv := http.NewServer()
+		srv.CustomerStore = s
+		if err := s.Start(); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+
+* Conclusion
+
+* Conclusion
+
+- Separate out your domain language in your root package
+- Isolate your dependencies in subpackages
+- Provides mocks to isolate your tests
+- Commands bring together dependencies
