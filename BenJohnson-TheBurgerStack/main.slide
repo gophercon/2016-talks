@@ -1,0 +1,551 @@
+The Burger Stack
+Simplifying Web Application Development
+10 Jul 2016
+
+Ben Johnson
+benbjohnson@yahoo.com
+@benbjohnson
+
+
+* Go is awesome 🎉🎉🎉
+
+* Tons of use cases
+
+- Databases
+- Distributed systems
+- Low level networking
+- Infrastructure management
+- Command line tools
+
+But something is missing...
+
+* Web application development
+
+
+* Brief history of web application development
+
+LAMP (1990's)
+
+- Slow, interpreted language
+- Complex SQL database server
+
+Rails (2000's)
+
+- Slow, interpreted language
+- Hide complexity of SQL in ORM
+
+MEAN (2010's)
+
+- Faster, interpreted language
+- Ditch SQL entirely, just use untyped collections
+
+
+* Flaws of Go web development
+
+- Limited templating support
+- Limited ORM tooling
+
+
+* Rise of the SPA (Single Page Application)
+
+* Facebook React
+
+.image images/react.png
+
+* Facebook React
+
+- Client side rendering
+- Only needs an API
+
+
+* Working with SQL
+
+* Object/Relational Mapping (ORM)
+
+- Working with SQL in Go is a pain
+- Go lacks a standard ORM tool
+- ORMs are an elaborate way to avoid SQL
+
+* Best way to avoid SQL is to not use SQL!
+
+* Object to Byte Mapping
+
+- Go excels at working with bytes
+- Decades of research into object-to-byte mappings!
+
+* Serialization!
+
+Tons of options:
+
+- Protocol Buffers
+- FlatBuffers
+- Avro
+- MessagePack
+- JSON
+
+Works as a schema for your data.
+
+
+* stdlib: encoding package
+
+	type BinaryMarshaler interface {
+	        MarshalBinary() (data []byte, err error)
+	}
+
+	type BinaryUnmarshaler interface {
+	        UnmarshalBinary(data []byte) error
+	}
+
+.link https://golang.org/pkg/encoding/
+
+
+* Simplify, simplify, simplify
+
+- Don't need SQL
+- Don't need queries
+- Don't need query planner
+- Don't need query cache
+- Don't even need a server
+
+
+* Use an embedded key/value store!
+
+* Database requirements for web application development
+
+- Pure Go
+- ACID transactions
+- Read optimized
+
+* BoltDB
+
+Greatest database platform ever to be created!
+
+.image images/bolt.png
+
+
+* BoltDB
+
+Disclaimer: I'm the author of BoltDB
+
+.image images/bolt.png
+
+
+* BGR Stack
+
+.image images/bgr.png
+
+Go gopher was designed by Renee French, React logo was designed at Facebook
+
+
+
+* Getting started with BoltDB
+
+* Installation
+
+Just type:
+
+  $ go get github.com/boltdb/bolt
+
+And you're ready!
+
+🎉🎉🎉
+
+
+* Cross platform support
+
+Works on:
+
+- Windows
+- Mac OS X
+- Linux
+- ARM
+- iOS
+- Android
+
+
+* CRUD
+
+* Domain Type
+
+We'll focus just on a simple data layer to perform CRUD operations on "users"
+
+	// User represents a user in our system.
+	type User struct {
+		ID       int
+		Username string
+	}
+
+
+* Protobuf definition
+
+`internal/internal.proto`
+
+	package internal;
+
+	message User {
+		optional int64  ID       = 1;
+		optional string Username = 2;
+	}
+
+- Field IDs provide versioning
+- No migration needed to add or remove fields
+
+
+* Go Generate
+
+Add this line to your main package:
+
+	//go:generate protoc --gogo_out=. internal/internal.proto
+
+Automatically regenerate encoders/decoders:
+
+	$ go generate
+
+
+
+* Ugly generated code
+
+	package internal
+
+	type User struct {
+		ID               *int64  `protobuf:"varint,1,opt,name=ID" json:"ID,omitempty"`
+		Username         *string `protobuf:"bytes,2,opt,name=Username" json:"Username,omitempty"`
+		XXX_unrecognized []byte  `json:"-"`
+	}
+
+	func (m *User) Reset()                    { *m = User{} }
+	func (m *User) String() string            { return proto.CompactTextString(m) }
+	func (*User) ProtoMessage()               {}
+	func (*User) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{0} }
+
+	func (m *User) GetID() int64 {
+		if m != nil && m.ID != nil {
+			return *m.ID
+		}
+		return 0
+	}
+
+	...
+
+
+* BinaryMarshaler
+
+Encode a `*User` to a `[]byte`:
+
+	// MarshalBinary encodes a user to binary format.
+	func (u *User) MarshalBinary() ([]byte, error) {
+		pb := internal.User{
+			ID:       proto.Int64(int64(u.ID)),
+			Username: proto.String(u.Username),
+		}
+
+		return proto.Marshal(&pb)
+	}
+
+`*User` ➤ `*internal.User` ➤ `[]byte`
+
+
+* BinaryUnmarshaler
+
+Decode from a `[]byte` to a `*User`:
+
+	func (u *User) UnmarshalBinary(data []byte) error {
+		var pb internal.User
+		if err := proto.Unmarshal(data, &pb); err != nil {
+			return err
+		}
+
+		u.ID = int(pb.GetID())
+		u.Username = pb.GetUsername()
+
+		return nil
+	}
+
+`[]byte` ➤ `*internal.User` ➤ `*User`
+
+
+* Data Store
+
+* Data Store
+
+	// Store represents the data storage layer.
+	type Store struct {
+		// Filepath to the data file.
+		Path string
+
+		db *bolt.DB
+	}
+
+
+* Opening & initializing a Bolt database
+
+	func (s *Store) Open() error {
+		db, err := bolt.Open(s.path, 0666, nil)
+		if err != nil {
+			return err
+		}
+		s.db = db
+
+		// Start a writable transaction.
+		tx, err := s.db.Begin(true)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+
+		// Initialize buckets to guarantee that they exist.
+		tx.CreateBucketIfNotExists([]byte("Users"))
+
+		// Commit the transaction.
+		return tx.Commit()
+	}
+
+
+* Creating a user
+
+* Creating a user
+
+	func (s *Store) CreateUser(u *User) error {
+		tx, err := s.db.Begin(true)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+	
+		// Retrieve bucket and create new ID.
+		bkt := tx.Bucket([]byte("Users"))
+		seq, _ := bkt.NextSequence()
+		u.ID = int(seq)
+
+		// Marshal our user into bytes.
+		buf, err := u.MarshalBinary()
+		if err != nil {
+			return err
+		}
+
+		// Save user to the bucket.
+		if err := bkt.Put(itob(u.ID), buf); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+
+* Helper function
+
+	// itob encodes v as a big endian integer.
+	func itob(v int) []byte {
+		buf := make([]byte, 8)
+		binary.BigEndian.PutUint64(buf, uint64(v))
+		return buf
+	}
+
+
+* Retrieving a user
+
+* Retrieving a user
+
+	func (s *Store) User(id int) (*User, error) {
+		// Start a read-only transaction.
+		tx, err := s.db.Begin(false)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+
+		// Read encoded user bytes.
+		v := tx.Bucket([]byte("Users")).Get(itob(id))
+		if v == nil {
+			return nil, nil
+		}
+
+		// Unmarshal bytes into a user.
+		var u User
+		if err := u.UnmarshalBinary(v); err != nil {
+			return nil, err
+		}
+
+		return &u, nil
+	}
+
+* Retrieving a list of users
+
+	func (s *Store) Users() ([]*User, error) {
+		// Start a read-only transaction.
+		tx, err := s.db.Begin(false)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+
+		// Create a cursor on the user's bucket.
+		c := tx.Bucket([]byte("Users")).Cursor()
+
+		// Read all users into a slice.
+		var a []*User
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var u User
+			if err := u.UnmarshalBinary(v); err != nil {
+				return nil, err
+			}
+			a = append(a, &u)
+		}
+
+		return a, nil
+	}
+
+
+* Updating a user
+
+* Updating a user
+
+	func (s *Store) SetUsername(id int, username string) error {
+		return s.db.Update(func(tx *bolt.Tx) error {
+			bkt := tx.Bucket([]byte("Users"))
+
+			// Retrieve encoded user and decode.
+			var u User
+			if v := bkt.Get(itob(id)); v == nil {
+				return ErrUserNotFound
+			} else if err := u.UnmarshalBinary(v); err != nil {
+				return err
+			}
+
+			// Update user.
+			u.Username = username
+
+			// Encode and save user.
+			if buf, err := u.MarshalBinary(); err != nil {
+				return err
+			} else if err := bkt.Put(itob(id), buf); err != nil {
+				return err
+			}
+			return nil
+		})
+	}
+
+
+* Deleting a user
+
+* Deleting a user
+
+	func (s *Store) DeleteUser(id int) error {
+		return s.db.Update(func(tx *bolt.Tx) error {
+			return tx.Bucket([]byte("Users")).Delete(itob(id))
+		})
+	}
+
+
+* BoltDB in Practice
+
+* In Development
+
+Awesomeness:
+
+- No dependencies
+- Pure Go
+- Stable API
+
+Gotchas:
+
+- Bolt returns byte slices pointing directly to a read-only mmap
+- Byte slices are only valid for the life of a transaction
+
+
+* In Testing
+
+Awesomeness:
+
+- Use `ioutil.TempFile()`
+- Easily parallelizable
+- No migrations, just start up
+
+
+* In Production
+
+Awesomeness:
+
+- Data is held in the OS page cache so it persists across application restarts
+
+Gotchas:
+
+- Requires a lot of random access so SSDs are advised
+
+
+* Backup & Restore
+
+- Strongly consistent backup
+- FUTURE: Async streaming replication coming
+
+
+* Backup & Restore
+
+`bolt.Tx` implements `io.WriterTo`:
+
+	type WriterTo interface {
+		WriteTo(w Writer) (n int64, err error)
+	}
+
+- 3-5 sec/GB typically
+
+* HTTP Backup
+
+	func (*Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	    tx, err := db.Begin(false)
+	    if err != nil {
+	        http.Error(w, err.Error(), http.StatusInternalServerError)
+	        return
+	    }
+	    defer tx.Rollback()
+
+	    w.Header().Set("Content-Type", "application/octet-stream")
+	    w.Header().Set("Content-Disposition", `attachment; filename="my.db"`)
+	    w.Header().Set("Content-Length", strconv.Itoa(int(tx.Size())))
+
+	    tx.WriteTo(w)
+	}
+
+
+* Performance
+
+* Benchmarks
+
+These are ballpark estimates!
+
+
+* Write performance
+
+- 2,000 random writes/sec
+- 450,000 sequential, batched writes/sec
+
+* Read performance
+
+If data is hot in memory:
+
+- 1-2µs fetch time
+- Iterate over 20M keys/sec
+
+If data is not hot in memory:
+
+- Depends on your hard drive's speed
+
+
+* Other fun uses for BoltDB
+
+- Message queue
+- Analytics
+- Buckets can be nested to provide interesting data structures
+
+
+* Conclusion
+
+* Conclusion
+
+- BGR stack fits many web application use cases
+- Development experience is great
+- Testing experience is great
+- Deployment experience is great
+- Code is not only simple but extremely fast
+
+* Consider the BGR stack for your next project!
+
+.image images/bgr.png
