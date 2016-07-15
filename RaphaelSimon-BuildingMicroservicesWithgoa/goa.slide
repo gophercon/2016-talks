@@ -1,0 +1,341 @@
+goa
+A New Approach to Microservice Development in Go
+11 Jul 2016
+Tags: goa, golang, microservices
+
+https://goa.design
+https://gophers.slack.com/messages/goa/
+raphael@goa.design
+@rgsimon
+
+* 
+
+.background ./images/goa_cover.png
+
+* A Bit About Me
+
+Raphael Simon – Systems Architect at RightScale
+
+- Involved in the design and implementation of many services
+- Reviewed and built integrations with many external APIs
+- Suffered through the consequences of badly designed APIs in both cases
+
+.image ./images/0_rightscale-team.jpg 358 _
+
+* A Bit On goa
+
+goa is a novel approach to building microservices that starts with the *design*.
+
+goa has three parts:
+
+- a Go DSL for describing the microservice API
+- a tool for generating code and documentation from design DSL
+- a library to support the implementation of microservices
+
+.image ./images/transparent.png 1 1
+.image ./images/goa-logo.svg 180 _
+
+* A Bit On The Talk
+
+- API design?
+- Hello, goa
+- Enabling the API design life cycle
+- Advanced Topics
+
+* 
+
+.background ./images/background.png
+
+.html ./html/process_of_designing.html
+
+* Designing The Wine Review App
+
+We have a new customer!
+
+and they want us to build a wine review app!!
+
+.image ./images/1_wine_review_service.svg
+
+* The API
+
+RESTful API with the following resources:
+
+- `bottles`
+- `reviews`
+
+* Looking Good!
+
+Creating bottles:
+
+  POST /bottles
+
+Listing bottles:
+
+  GET /bottles
+
+Creating reviews:
+
+  POST /bottles/1/reviews
+
+Listing reviews:
+
+  GET /bottles/1/reviews
+
+* UI Needs
+
+_We'd_like_to_show_all_the_reviews_made_by_a_user_
+
+simple!
+
+  GET /bottles
+
+then for each
+
+  GET /bottles/:id/reviews
+
+uh oh...
+
+* Satisfying UI Needs
+
+  GET /reviews
+
+hmmm
+
+  GET /reviews?bottles=1
+
+* V2
+
+Creating reviews:
+
+  POST /reviews
+
+Listing all reviews:
+
+  GET /reviews
+
+Listing reviews for a bottle:
+
+  GET /reviews?bottle=1
+
+Creating bottles:
+
+  POST /bottles
+
+Listing bottles:
+
+  GET /bottles
+
+* API Design Life Cycle
+
+Designing an API is an iterative process.
+
+.image ./images/3_design_lifecycle.svg
+
+* Designing GOOD APIs Is Surprisingly Hard
+
+as a *reviewer*
+
+- the specification needs to be complete, consistency and details are important!
+- how can I make sure the implementation matches the design?
+
+as a *developer*
+
+- writing that specification is a lot of work, then I have to re-implement it?
+- and you expect me to keep it up-to-date?
+
+goa's goal is to enable good design practices while helping both API developers and API reviewers.
+
+* Enters goa
+
+- Design your API in *code* ⇢  _think_abstractly_about_the_design_
+- Generate the docs         ⇢  _docs_are_always_up_to_date_
+- Generate the boilerplate  ⇢  _the_design_becomes_part_of_the_implementation_
+
+* 
+
+.background ./images/background.png
+
+.html ./html/hello.html
+
+* Implementing the Design
+
+.image ./images/2_wine_review_service.svg
+
+* Live Coding
+
+- Design.
+
+* What Just Happened?
+
+`goagen` generates a tool by compiling the command specific _code_generation_algorithm_ together with the _design_package_.
+
+`goagen` then executes the tool:
+
+- The DSL executes which creates in-memory data structures that describe the design.
+- The code generation algorithm uses the data structures as input to produce the final output.
+
+.image ./images/9_goagen.svg
+
+* 
+
+.background ./images/background.png
+
+.html ./html/anatomy_of_service.html
+
+* The Stack
+
+.image ./images/5_goa_static.svg
+
+: Both your code and the generated code leverage the goa library package
+
+* goa Library vs. Generated Code
+
+.image ./images/6_extended_stack.svg 550 _
+
+* Request Flow
+
+.image ./images/7_routing.svg
+
+* Live Coding
+
+- Implement.
+
+* 
+
+.background ./images/background.png
+
+.html ./html/enabling_design.html
+
+* 1. Code Separation Principle
+
+Use standard language constructs to integrate generated code with user code.
+
+- generated code is cheap, keep it that way!
+- understand errors as generated code evolves
+
+⇨ Generated code lives in *different*package* that is re-generated completely each time.
+
+- _Exception_: initial scaffold (`main.go`, `bottle.go`)
+
+* 2. Boilerplate Only
+
+- Generating repetitive code is what helps the most. This is where humans make mistakes.
+- ROI diminishes as generated code becomes less repetitive.
+
+Applied to goa:
+
+- (Un)Marshalling code and corresponding structs
+- Validation code
+- Client code
+
+* 3. Generation Must Be Idempotent
+
+Know the effects of changing the input
+
+- No iterating over maps
+- No truly random examples
+
+Applied to goa:
+
+- Generated "random" examples do not change across re-generation (unique per API)
+
+* Adding Documentation to TWRS
+
+.image ./images/swagger-ui.png _ 700
+
+* Live Coding
+
+- Document.
+
+* Enabling the API Life cycle
+
+- *New*resource* translates to new controller 
+⇨ mount controller on service
+
+- *New*action* results in additional method on generated interface
+⇨ won't compile until implemented
+
+- *Changes*to*the*request*payload*or*params* result in an updated context data struct
+⇨ may also break compilation depending on changes
+
+- *Changes*to*media*types* result in an updated media type struct
+⇨ ditto
+
+Changes are intuitive, compilation fails like you would expect.
+
+* Other Goodies
+
+.image ./images/8_goagen.svg
+
+* Stepping Back
+
+With goa:
+
+- Design gets embedded in implementation.
+- API lifecycle is enabled through code generation principles.
+- Real-time documentation can easily be shared with stakeholders.
+
+The design code is the *Single*Source*Of*Truth*.
+
+* 
+
+.background ./images/background.png
+
+.html ./html/advanced_topics.html
+
+* Connecting Services
+
+Generated client provides a base on which client services can build specialized clients.
+
+.code ./code/connecting/client.go //,/}/
+
+* Sharing Designs
+
+Design can be shared across different services for example to share type definitions.
+
+.code ./code/connecting/share.go
+
+* Security
+
+- goa has built-in support for Basic Auth, API Key, JWT and OAuth2
+- generates service and client code as well as docs
+
+.code ./code/security/design/design.go /var/,/OMIT/
+
+* Creating New DSL
+
+goa's DSL engine is built to support arbitrary DSLs.
+
+Plugins can:
+
+- define new DSL
+- generate new artifacts
+- do both like `gorma`
+
+.code ./code/plugin/gorma.go /var/,/^}\)/
+
+* Thank You To All The Contributors!
+
+Many features implemented by contributors, thank you!
+
+- gorma
+- security
+- request validation
+- example generation
+- imports generation
+- DSL engine improvements
+- test helpers
+- bug fixes
+- ...
+
+* Conclusion
+
+- Designing APIs is required for services that integrate with a larger system.
+- Writing the design in code enables reasoning abstractly about the API.
+- Code generation makes the design the Single Source Of Truth.
+
+* Design First!
+
+_Next_time_you_ *implement* _http.Handler_,
+
+_ask_yourself_whether_you_shouldn't_be_writing_the_ *design* _instead_.

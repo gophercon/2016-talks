@@ -1,0 +1,111 @@
+consumes:
+- application/json
+- application/xml
+- application/gob
+- application/x-gob
+definitions:
+  CreateBottlePayload:
+    description: BottlePayload is the type used to create bottles
+    properties:
+      name:
+        description: Name of bottle
+        minLength: 1
+        type: string
+      rating:
+        description: Rating of bottle
+        maximum: 5
+        minimum: 1
+        type: integer
+      vintage:
+        description: Vintage of bottle
+        minimum: 1900
+        type: integer
+    required:
+    - name
+    - vintage
+    - rating
+    title: CreateBottlePayload
+    type: object
+  bottle:
+    example:
+      ID: 9.910734e+16
+      name: Et saepe.
+      rating: 4.9685924e+18
+      vintage: 1.280148e+18
+    properties:
+      ID:
+        description: Unique bottle ID
+        example: 6.438311e+18
+        format: int64
+        type: integer
+      name:
+        description: Name of bottle
+        example: p
+        minLength: 1
+        type: string
+      rating:
+        description: Rating of bottle
+        example: 3
+        maximum: 5
+        minimum: 1
+        type: integer
+      vintage:
+        description: Vintage of bottle
+        example: 3410
+        minimum: 1900
+        type: integer
+    required:
+    - ID
+    - name
+    - vintage
+    - rating
+    title: 'Mediatype identifier: application/vnd.gophercon.goa.bottle'
+    type: object
+host: localhost:8080
+info:
+  description: The wine review service
+  version: ""
+paths:
+  /bottles:
+    post:
+      description: creates a bottle
+      operationId: bottle#create
+      parameters:
+      - description: BottlePayload is the type used to create bottles
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/CreateBottlePayload'
+      responses:
+        "201":
+          description: Created
+      summary: create bottle
+      tags:
+      - bottle
+  /bottles/{id}:
+    get:
+      description: shows a bottle
+      operationId: bottle#show
+      parameters:
+      - in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bottle'
+      summary: show bottle
+      tags:
+      - bottle
+produces:
+- application/json
+- application/xml
+- application/gob
+- application/x-gob
+responses:
+  Created:
+    description: Created
+swagger: "2.0"
