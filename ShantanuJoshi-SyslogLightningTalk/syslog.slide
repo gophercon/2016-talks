@@ -1,0 +1,18 @@
+Successfully Avoiding the syslog package
+12 July 2016
+
+Shantanu Joshi
+Software Engineer,backplane.io
+shantanu@backplane.io
+http://joshishantanu.com
+
+* Requirements
+
+- Service that can run anywhere
+- Logs should be output to stderr AND shipped to papertrail 
+
+* Code
+
+.code syslog.go /START OMIT/,/END OMIT/
+
+* Demo
