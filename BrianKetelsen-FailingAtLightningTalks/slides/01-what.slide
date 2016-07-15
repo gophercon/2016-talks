@@ -1,0 +1,73 @@
+Hold My Beer...
+Using Syncthing to Synchronize Development Environment
+11 Jul 2016
+
+Brian Ketelsen
+bketelsen@gmail.com
+@bketelsen
+
+* What the heck is this talk about?
+
+- Synchronoze $GOPATH/src across multiple computers
+
+This sounds crazy, in this talk I'll tell you why it isn't, and what makes it awesome.
+
+* But... WHY? 
+
+This may sound like an insane idea.  This is why we have `git`, right?
+
+- Do you always want to commit your code before you step away from your computer?
+- Do you use more than one computer over the course of a day?
+
+If you answered "YES" to any of these questions, then `syncthing` may be for you.
+
+* OK... I don't buy it, but how?
+
+Syncthing (http://syncthing.net):
+
+	Syncthing replaces proprietary sync and cloud services with something open, 
+	trustworthy and decentralized. Your data is your data alone and you deserve 
+	to choose where it is stored, if it is shared with some third party and how 
+	it's transmitted over the Internet.
+
+When I found Syncthing, I used it to keep documents and pictures synchronized between my computers.  Sounds normal, worked really well.
+
+But...
+
+* Syncthing is really FAST
+
+Syncthing is extremely fast on a LAN, and only slightly slower over the Internet.
+
+This made me wonder:
+
+	Could I synchronize my source code across multiple machines?
+
+
+* $GOPATH/src
+
+Remember with me, a $GOPATH has three root directories:
+
+	$GOPATH/src
+	$GOPATH/pkg
+	$GOPATH/bin
+
+Of the three, `$GOPATH/src` is not platform specific.  `pkg` and `bin` are compiled object files and binaries for your platform and architecture.  But `src` is just source code.  WHY NOT?
+
+* Setup Syncthing
+
+- Install syncthing on the first computer and tell it to share your `$GOPATH/src` directory.
+- On another computer, install syncthing and introduce the two computers.  Share the `src` share from one to the other.
+- Wait a little bit and watch the synchronization work.
+- *Don't*do*this*with*conflicting*files*in*the*same*directory*structure*.
+
+*  Step 3 Profit
+
+- It just works.
+- Default settings require a 30 second delay before closing a laptop lid or shutting down your computer.  Inotify may work, but I'm nervous of performance with a big $GOPATH dir.
+- I've only had ONE problem over the past year
+
+* The Only Problem
+
+Windows Subsystem for Linux...
+
+Apparently permissions are still "in progress". Synced 0777 permissions back to all other computers.  *You*DO*have*backups*right*?
