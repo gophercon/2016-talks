@@ -280,7 +280,7 @@ Decode from a `[]byte` to a `*User`:
 * Opening & initializing a Bolt database
 
 	func (s *Store) Open() error {
-		db, err := bolt.Open(s.path, 0666, nil)
+		db, err := bolt.Open(s.Path, 0666, nil)
 		if err != nil {
 			return err
 		}

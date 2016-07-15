@@ -54,7 +54,7 @@ Data Types (POGO)
 
 Interfaces for implementations
 
-	type CustomerStore struct {
+	type CustomerStore interface {
 		Customer(id int) (*Customer, error)
 		CreateCustomer(*Customer) error
 		DeleteCustomer(id int) error
