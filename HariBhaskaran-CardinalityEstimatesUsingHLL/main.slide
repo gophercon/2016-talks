@@ -1,0 +1,188 @@
+Cardinality Estimates Using HLL in Go
+Large dataset, HyperLogLog++, and Go
+
+Hari Bhaskaran
+Adobe
+hari@adobe.com
+@yetanotherfella
+https://www.linkedin.com/in/haribhaskaran
+
+
+* Goal
+
+- Answer questions like 'How many unique visitors did my site have yesterday?'
+- How many unique visitors did my site have last week?
+- From data stored in database or plain text TSV files. Solution applies to both, but I will be limiting my talk to command line analysis of plain text files
+
+* Accurate, but slow solutions
+
+- select count(distinct(key)) from events where date between X and Y;
+- cut -f .. file | sort -u | wc -l
+- .... | awk '{ c[$1]++} END{for (i in c) print i, c[i]}' 
+
+* Sample dataset
+
+    $ find logs -type f | \
+        parallel -X 'wc -l {} | grep total' | \
+        awk '{a+=$1}END{print a}'
+
+    92634675 # Number of lines, 92 Million
+
+    $ find logs -type f | wc -l
+
+    4392 # Number of files
+
+.caption O. Tange (2011): GNU Parallel - The Command-Line Power Tool,
+.caption ;login: The USENIX Magazine, February 2011:42-47.
+
+* Sample dataset (cont'd)
+
+    $ cat $(find logs -type f | sort -R | head -n 1) | cut -f1,4 | head -n 2
+    T8      VsmEKQAAAB77S@xU
+    T8      Vy5XnQAABfrFEtEt
+    
+    $ find logs -type f | \
+        parallel -P20 -L200 'LC_ALL=C cut -f1,4 {} | wc -c' | \
+        awk '{a+=$1}END{print a}'
+
+    1817322784 # Only 1.8 G is relevant data (to be distincted)
+
+    $ find logs -type f | parallel -P20 -L200 'wc -c {} | grep total' | \
+        awk '{a+=$1}END{print a}'
+
+    78185624553 # Total data size is 75G
+
+.caption O. Tange (2011): GNU Parallel - The Command-Line Power Tool,
+.caption ;login: The USENIX Magazine, February 2011:42-47.
+
+* Let us calculate the uniques
+
+    $ time (find logs -type f | sort -R | \
+        parallel -P20 -L200 'LC_ALL=C cut -f1,4 {}' | \
+        LC_ALL=C sort -u | \
+        awk '{ c[$1]++} END{for (i in c) print i, c[i]}')
+
+    T11 1841
+    T1 1
+    T2 2250490
+    T3 2593651
+    T4 4267297
+    T5 30833645
+    T6 1348228
+    b7027a8ada48bfa673aae37a9b9f96 1 # <--  blame Java for this :P
+    T7 4675100
+    T8 5126977
+    T9 857155
+    T10 16
+
+    real    1m50.093s
+    user    5m49.232s
+    sys     0m30.670s
+
+* HyperLogLog++
+
+- LogLog -> HyperLogLog -> HyperLogLog++
+- HLL used here is HyperLogLog++, a few modifications to an earlier HyperLogLog algorithm by a few researchers at Google (Stefan Heule, Marc Nunkesser, Alexander Hall)
+- HLL supports Unions which allows us to break the estimation problem into smaller chunks that can even be run in parallel
+
+MapReduce style
+
+- Still scans all data
+- Avoids a gigantic sort.
+
+Incremental Update style
+
+- Save daily uniques
+- Generate weekly/monthly uniques from it.
+
+* My HLL based CLI utility 'dice'
+
+    $ dice -h
+    Usage of dice (Version: 20160618.122920):
+      -d, --delimiter string   Delimiter character.
+      -i, --hll-in             Input has HLL json-data instead of column value
+      -o, --hll-out            Ouput HLL json-data instead of cardinality
+      -u, --uniq-col int       One-based column number to distinct. Zero implies whole line
+
+Typical usage would involve invoking dice with -i or -o depending on whether we are in the Map phase or Reduce phase
+
+.caption A less relevant sibling utility was first named 'slice'. Then this had to be 'dice'
+
+* Let us calculate the uniqs using HLL
+
+    $ time (find logs -type f | sort -R | \
+        parallel -P20 -L200 'LC_ALL=C cut -f1,4 {} | ~/bin/dice --hll-out -u2' | \
+        ~/bin/dice --hll-in -u2)
+
+    T1      1
+    T3      2607555
+    T9      864695
+    T4      4276099
+    T6      1358564
+    T8      5116414
+    T5      31155583
+    T10     16
+    T7      4667669
+    T2      2236266
+    T11     1734
+    b7027a8ada48bfa673aae37a9b9f96  1 # <- I still blame Java :P
+
+    real    0m22.295s
+    user    4m45.871s
+    sys     0m25.819s
+
+* Why is it so fast?
+
+- Avoided the sort
+- It used more cores of the machine since chunks were processed in parallel
+
+* How does HLL do this magic?
+
+In a random stream of integers, ~50% of the numbers (in binary) starts with "1", 25% starts with "01", 12.5% starts with "001". This means that if you observe a random stream and see a "001", there is a higher chance that this stream has a cardinality of 8. HLL is calculated on a hash of the input to create the randomness
+
+This is over simplified for a 6-minute talk.  In reality HLL does lot more than this. It actually splits the 64 bit range in to many sub-streams, calculates the estimate for each sub-stream and does an average across them
+
+
+* HLL Related Code
+
+There seems to be many HLL++ Go implementations. I have used
+https://github.com/lytics/hll 
+
+    h, ok := uniqs[groupKey]
+    if !ok {
+        h = hll.NewHll(14, 25)
+        uniqs[groupKey] = h
+    }
+    if hllIn {
+        h2 := hll.NewHll(14, 25)
+        err := h2.UnmarshalJSON(line[keyStart:keyEnd])
+        if err != nil {
+            log.Printf("Unable to Unmarshall JSON-HLL: %s (key = %v)", err, groupKey)
+            continue
+        }
+        h.Combine(h2)
+    } else {
+        h.Add(murmur3.Sum64(line[keyStart:keyEnd]))
+    }
+
+* HLL Related Code (contd)
+
+    if hllOut {
+        b, err := v.MarshalJSON()
+        if err != nil {
+            log.Fatalf("Unabled to marshal HLL to JSON: %s", err)
+        }
+        writer.Write(b)
+    } else {
+        writer.WriteString(fmt.Sprintf("%d", v.Cardinality()))
+    }
+
+* Intermediate results
+
+    T7      {"M":"gWAwDAAIAAACAAAFAQEBAgUKHAQBBAAAAgYA....DXUFeywCAAAABAAAAgMAAAA=","p":14,"pp":25}
+
+
+Intermediate result may appear larger than the original content in that column.
+This HLL intermediate JSON-formatted result is a long string of about 10k
+bytes. However, note that we only create one such line per run of the job (200
+files in this case) per unique value of the column-1 in this case.
