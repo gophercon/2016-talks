@@ -1,0 +1,50 @@
+Writing Go with friends
+Pair programming with TMUX
+10 Jul 2016
+
+Leigh McCulloch
+Software Engineer
+@___leigh___
+
+* Setup
+
+: I'm going to show you how you can quickly create a remote pairing environment so that we can pair without sharing a keyboard. You can use this is you're standing next somebody, or if they're remote, or if you've only met them on github.
+
+: The first thing I do is create a throw away instance on digital ocean with Ubuntu.
+
+Create a throw away instance. e.g. Digital Ocean
+
+: And ssh in as root and install the minimum apps I need.
+
+Basic setup
+
+  add-apt-repository -y ppa:ubuntu-lxc/lxd-stable
+  apt-get update -y
+  apt-get install -y git tmux vim golang
+
+: I'll then create a user for each person pairing, pull their public github ssh keys, so that each party can ssh in without needing to setup a password. This is really great if I've only met someone on github. I can ask them to ssh in without then needing to do anything for setup, and I can post the SSH details straight into a public PR.
+
+Create a user for everyone pairing
+
+  adduser --disabled-password --gecos "" $username
+  mkdir ~$username/.ssh
+  curl https://github.com/$username.keys > ~$username/.ssh/authorized_keys
+
+: And we're done. We have a basic pairing environment setup.
+
+* Pairing
+
+: The person starting the session can run tmux new, and use factl to grant permission for the other user to access the tmux socket. The other person can then join. 
+
+Start a session
+
+  ssh leighmcculloch@107.170.236.186
+  tmux -S /tmp/pair new
+  setfacl -m user:tenxdev:rwx /tmp/pair
+
+Join a session
+
+  ssh tenxdev@107.170.236.186
+  tmux -S /tmp/pair attach
+
+: It's this simple.
